@@ -2,60 +2,49 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 
-# CSV 파일 불러오기
+# 데이터 불러오기
 @st.cache_data
 def load_data():
-    df = pd.read_csv('202505_202505_연령별인구현황_월간.csv', encoding='cp949')
+    df = pd.read_csv("202505_202505_연령별인구현황_월간.csv", encoding="cp949")
+    df.columns = df.columns.str.strip()
     return df
 
 df = load_data()
-df.columns = df.columns.str.strip()
 
-st.title("📊 지역별 인구 구조 시각화")
-st.markdown("대한민국 시군구별 연령별 인구구조 데이터를 기반으로 한 시각화 앱입니다.")
+st.title("📊 대한민국 지역별 인구 피라미드 (2025년 5월 기준)")
 
 # 지역 선택
-region_list = df['행정기관'].unique()
-selected_region = st.selectbox("지역을 선택하세요", region_list)
+regions = df["행정구역"].unique()
+selected_region = st.selectbox("지역을 선택하세요", regions)
 
-# 선택된 지역의 데이터 필터링
-region_df = df[df['행정기관'] == selected_region]
+# 선택 지역 데이터 필터링
+region_df = df[df["행정구역"] == selected_region]
 
-# 연령/성별 열 추출
-age_cols = [col for col in df.columns if '세' in col]
-male_cols = [col for col in age_cols if '남' in col]
-female_cols = [col for col in age_cols if '여' in col]
+# 연령 관련 컬럼만 추출
+age_columns = [col for col in df.columns if "2025년05월_계_" in col and ("세" in col or "100세 이상" in col)]
+age_labels = [col.replace("2025년05월_계_", "") for col in age_columns]
 
-male = region_df[male_cols].sum().values
-female = region_df[female_cols].sum().values
-age_labels = [col.split('세')[0] + '세' for col in male_cols]
+# 문자열 → 숫자 변환 (쉼표 제거 후)
+population_strs = region_df[age_columns].iloc[0]
+population_nums = population_strs.str.replace(",", "").astype(int)
 
-# Plotly 인구 피라미드
+# 시각화 (Plotly 인구 피라미드)
 fig = go.Figure()
 
 fig.add_trace(go.Bar(
     y=age_labels,
-    x=-male,
-    name='남성',
+    x=-population_nums.values,
+    name='전체 (남녀 합계)',  # 성별 데이터는 없으므로 총계로
     orientation='h',
-    marker_color='skyblue'
-))
-
-fig.add_trace(go.Bar(
-    y=age_labels,
-    x=female,
-    name='여성',
-    orientation='h',
-    marker_color='lightcoral'
+    marker_color='mediumpurple'
 ))
 
 fig.update_layout(
-    title=f"{selected_region} 연령별 인구 피라미드 (2025년 5월)",
+    title=f"{selected_region} 연령별 인구 구조",
     barmode='relative',
     xaxis=dict(title='인구 수', tickformat=','),
-    yaxis=dict(title='연령대'),
-    bargap=0.05,
-    height=600
+    yaxis=dict(title='연령'),
+    height=700
 )
 
 st.plotly_chart(fig, use_container_width=True)
